@@ -10,8 +10,8 @@ import random
 from models import get_distillation_kernel_homo
 from torchvision import transforms
 from torch.utils.data import DataLoader
-from models.bert_model import HMNeTREModel, HMNeTNERModel
-from processor.dataset import MMREProcessor, MMPNERProcessor, MMREDataset, MMPNERDataset
+from models.bert_model import MKDNetModel
+from processor.dataset import MMREProcessor, MMREDataset
 from modules.train import RETrainer, NERTrainer
 import os
 import warnings
@@ -26,9 +26,8 @@ logger = logging.getLogger(__name__)
 
 
 MODEL_CLASSES = {
-    'MRE': HMNeTREModel,
-    'twitter15': HMNeTNERModel,
-    'twitter17': HMNeTNERModel
+    'MRE': MKDNetModel,
+   
 }
 
 TRAINER_CLASSES = {
@@ -79,13 +78,6 @@ DATA_PATH = {
                 'train_auximgs': 'data/NER_data/twitter2017/twitter2017_train_dict.pth',
                 'dev_auximgs': 'data/NER_data/twitter2017/twitter2017_val_dict.pth',
                 'test_auximgs': 'data/NER_data/twitter2017/twitter2017_test_dict.pth',
-
-                 'train_weight_weak': 'data/NER_data/twitter2017/train_weight_weak.txt',
-                    'dev_weight_weak': 'data/NER_data/twitter2017/val_weight_weak.txt',
-                    'test_weight_weak': 'data/NER_data/twitter2017/test_weight_weak.txt',
-                    'train_weight_strong': 'data/NER_data/twitter2017/train_weight_strong.txt',
-                    'dev_weight_strong': 'data/NER_data/twitter2017/val_weight_strong.txt',
-                    'test_weight_strong': 'data/NER_data/twitter2017/test_weight_strong.txt',
 
             },
         
@@ -201,7 +193,7 @@ def main():
         re_dict = processor.get_relation_dict()
         num_labels = len(re_dict)
         tokenizer = processor.tokenizer
-        model = HMNeTREModel(num_labels, tokenizer, args=args)
+        model = MKDNetModel(num_labels, tokenizer, args=args)
         # model = torch.nn.DataParallel(model, device_ids=[0, 1, 2, 3])
         # trainer = Trainer(train_data=train_dataloader, dev_data=dev_dataloader, test_data=test_dataloader, model=model,
         #                   processor=processor, args=args, logger=logger, writer=writer)
@@ -221,25 +213,7 @@ def main():
         model_task = torch.nn.DataParallel(model, device_ids=[0,1,2,3])
         model = [model_task, model_homo]
         trainer = Trainer(train_data=train_dataloader, dev_data=dev_dataloader, test_data=test_dataloader, model=model, processor=processor, args=args, logger=logger, writer=writer)
-    else:   # NER task
-        label_mapping = processor.get_label_mapping()
-        label_list = list(label_mapping.keys())
-        to_idx = [0, 1]  # all modalities can be distilled from each other simultaneously
-        from_idx = [0, 1]  # all modalities can be distilled from each other simultaneously
-        model_homo = getattr(get_distillation_kernel_homo, 'DistillationKernel')(n_classes=num_labels,
-                                                                                 hidden_size=768,
-                                                                                 gd_size=64,
-                                                                                 to_idx=to_idx, from_idx=from_idx,
-                                                                                 gd_prior=softmax([1, 0], 0.25),
-                                                                                 gd_reg=1,
-                                                                                 w_losses=[1, 10],
-                                                                                 metric='l1',
-                                                                                 alpha=1 / 8,
-                                                                                 )
-        model_task = HMNeTNERModel(label_list, args)
-        model_homo = model_homo.cuda()
-        model = [model_task, model_homo]
-        trainer = Trainer(train_data=train_dataloader, dev_data=dev_dataloader, test_data=test_dataloader, model=model, label_map=label_mapping, args=args, logger=logger, writer=writer)
+   
 
     if args.do_train:
         # train
