@@ -1,4 +1,3 @@
-"""Graph distillation for homo GD"""
 
 import torch
 from torch.autograd import Variable
